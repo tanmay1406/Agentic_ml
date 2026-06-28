@@ -1,0 +1,110 @@
+# ==========================================
+# Python
+# ==========================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# ==========================================
+# Virtual Environment
+# ==========================================
+
+venv/
+.venv/
+env/
+
+# ==========================================
+# Environment Variables
+# ==========================================
+
+.env
+.env.*
+
+# ==========================================
+# IDE
+# ==========================================
+
+.vscode/
+.idea/
+
+# ==========================================
+# macOS
+# ==========================================
+
+.DS_Store
+
+# ==========================================
+# Jupyter
+# ==========================================
+
+.ipynb_checkpoints/
+*.ipynb
+
+# ==========================================
+# Testing
+# ==========================================
+
+.pytest_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# Build
+# ==========================================
+
+build/
+dist/
+*.egg-info/
+
+# ==========================================
+# Logs
+# ==========================================
+
+*.log
+
+# ==========================================
+# Python Tooling
+# ==========================================
+
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# ==========================================
+# SynapseAI Workspace
+# (generated during execution)
+# ==========================================
+
+workspace/state.json
+
+workspace/models/
+workspace/reports/
+
+workspace/**/*.pkl
+workspace/**/*.csv
+workspace/**/*.json
+workspace/**/*.md
+
+# Keep folders even when empty
+!workspace/.gitkeep
+!workspace/data/.gitkeep
+!workspace/data/raw/.gitkeep
+!workspace/data/processed/.gitkeep
+!workspace/models/.gitkeep
+!workspace/reports/.gitkeep
+
+# Ignore temporary agent scripts
+workspace/agent_*.py
+workspace/temp_agent_script.py
+
+# ==========================================
+# Optional
+# Ignore uploaded datasets
+# Uncomment if datasets are large
+# ==========================================
+
+# workspace/data/raw/*
+# !workspace/data/raw/.gitkeep
