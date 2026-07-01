@@ -58,7 +58,7 @@ class PrepAgent(BaseAgent):
         os.makedirs(self.OUTPUT_DIR, exist_ok=True)
 
         cleaned_dataset_path = str(
-            Path(self.OUTPUT_DIR) / self.OUTPUT_FILE
+            Path(self.OUTPUT_DIR).resolve() / self.OUTPUT_FILE
         )
 
         # =====================================================

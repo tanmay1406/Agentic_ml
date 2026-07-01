@@ -372,7 +372,8 @@ class AgentState(BaseModel):
             best = self.leaderboard[0]
 
             self.best_model = best.name
-            self.best_model_path = best.model_path
+            if best.model_path is not None:
+                self.best_model_path = best.model_path
             self.best_score = best.score
 
     # ========================================================

@@ -86,8 +86,11 @@ def main():
     # Shared Components
     # -------------------------------------------------------------------------
 
+    import os
+    dataset_abs_path = os.path.abspath(args.dataset)
+
     state = AgentState(
-        dataset_path=args.dataset,
+        dataset_path=dataset_abs_path,
         target_column=args.target,
     )
 

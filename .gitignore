@@ -108,3 +108,9 @@ workspace/temp_agent_script.py
 
 # workspace/data/raw/*
 # !workspace/data/raw/.gitkeep
+
+
+test_integration.py
+test_paths.py
+test_sandbox_2.py
+test_sandbox_debug.py

@@ -115,6 +115,10 @@ ALLOWED_IMPORTS = {
     "typing",
     "datetime",
     "time",
+    "warnings",
+    "re",
+    "copy",
+    "functools",
 }
 
 FORBIDDEN_IMPORTS = {

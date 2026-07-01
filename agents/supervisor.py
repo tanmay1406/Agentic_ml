@@ -14,7 +14,7 @@ Responsibilities
 ✓ Decide which agent executes next
 ✓ Handle retries
 ✓ Detect workflow completion
-✓ Recover from failures
+✓ Recover from failures 
 ✓ Log important decisions
 ✓ Maintain execution order
  

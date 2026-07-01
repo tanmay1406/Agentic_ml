@@ -60,10 +60,10 @@ class ReportAgent(BaseAgent):
 
         super().__init__(state, llm, sandbox)
 
-        self.REPORT_DIR.mkdir(parents=True, exist_ok=True)
+        self.REPORT_DIR.resolve().mkdir(parents=True, exist_ok=True)
 
-        self.report_path = self.REPORT_DIR / self.REPORT_FILE
-        self.summary_path = self.REPORT_DIR / self.SUMMARY_FILE
+        self.report_path = self.REPORT_DIR.resolve() / self.REPORT_FILE
+        self.summary_path = self.REPORT_DIR.resolve() / self.SUMMARY_FILE
 
         self.leaderboard = None
         self.metrics = {}

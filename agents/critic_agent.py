@@ -441,7 +441,9 @@ class CriticAgent(BaseAgent):
             self.set_phase("REPORT")
 
         self.complete()
-        self.reset_retry()
+
+        if not self.state.retry_required:
+            self.reset_retry()
 
         return self.state
 
@@ -747,7 +749,9 @@ Return plain text only.
         # ------------------------------------------------------
 
         self.complete()
-        self.reset_retry()
+
+        if not self.state.retry_required:
+            self.reset_retry()
 
         self.log("CriticAgent finished successfully.")
 

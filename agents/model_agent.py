@@ -60,6 +60,27 @@ class ModelAgent(BaseAgent):
 
         self.log("Starting model training.")
 
+        # ==========================================================
+        # Guard: feature_dataset_path must not be None
+        #
+        # If FeatureAgent failed or was skipped, feature_dataset_path
+        # stays None. Without this check, None gets interpolated into
+        # the LLM prompt as the string "None", causing the generated
+        # code to try to open a file literally called "None".
+        # ==========================================================
+
+        if not self.state.feature_dataset_path:
+
+            self.error(
+                "feature_dataset_path is None. "
+                "FeatureAgent may not have run or may have failed. "
+                "Cannot proceed with model training."
+            )
+
+            self.state.retry_required = True
+            self.complete()
+            return self.state
+
         dataset_path = self.state.feature_dataset_path
         target_column = self.state.target_column
 
@@ -75,9 +96,9 @@ class ModelAgent(BaseAgent):
 
         os.makedirs(self.MODEL_DIR, exist_ok=True)
 
-        best_model_path = str(Path(self.MODEL_DIR) / "best_model.pkl")
-        leaderboard_path = str(Path(self.MODEL_DIR) / "leaderboard.csv")
-        metrics_path = str(Path(self.MODEL_DIR) / "metrics.json")
+        best_model_path = str(Path(self.MODEL_DIR).resolve() / "best_model.pkl")
+        leaderboard_path = str(Path(self.MODEL_DIR).resolve() / "leaderboard.csv")
+        metrics_path = str(Path(self.MODEL_DIR).resolve() / "metrics.json")
 
         # ==========================================================
         # Prompt
