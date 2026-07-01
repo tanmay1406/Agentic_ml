@@ -5,22 +5,27 @@ agents/feature_agent.py
                                 SynapseAI
 ===============================================================================
 
-Feature Engineering Agent
+Feature Engineering Agent — ALL BUGS FIXED IN THIS VERSION
 
-Responsibilities
-----------------
-✓ Analyze cleaned dataset
-✓ Generate feature engineering code using the LLM
-✓ Execute generated code inside the Sandbox
-✓ Save engineered dataset
-✓ Update AgentState
-✓ Log execution
+Bugs fixed
+----------
+Bug 2  Workflow: success path called self.state.next_agent("ModelAgent")
+       directly, bypassing the Supervisor entirely. Now routes through
+       self.complete() → Supervisor → ModelAgent.
 
-Unlike the PrepAgent, this agent is responsible for improving the
-predictive power of the dataset through intelligent feature engineering.
+Bug 3  Missing self.complete() in three error paths. Without it,
+       current_agent never reverted to "Supervisor", causing the main loop
+       to re-run FeatureAgent directly on every retry.
 
-The LLM should reason about the dataset and choose appropriate feature
-engineering techniques instead of blindly applying transformations.
+Bug 7  No guard against cleaned_dataset_path being None. If PrepAgent
+       failed, None was silently interpolated into the LLM prompt, producing
+       hallucinated code that referenced a non-existent file path.
+
+Bug 11 Bypassed BaseAgent helpers: used self.llm.generate_code() and
+       self.sandbox.execute() directly. Correct pattern is
+       self.generate_code() and self.execute_code(), which add standardised
+       logging and allow future cross-cutting concerns (metrics, tracing) to
+       be added in one place.
 
 ===============================================================================
 """
@@ -39,12 +44,12 @@ class FeatureAgent(BaseAgent):
 
     Workflow
     --------
-    1. Read cleaned dataset.
-    2. Analyze feature characteristics.
-    3. Ask the LLM to generate feature engineering code.
-    4. Execute generated code inside the Sandbox.
-    5. Save engineered dataset.
-    6. Update AgentState.
+    1. Guard: verify cleaned dataset exists.
+    2. Ask the LLM to generate feature engineering code.
+    3. Execute generated code inside the Sandbox.
+    4. Verify engineered dataset was produced.
+    5. Update AgentState.
+    6. Route back to Supervisor.
     """
 
     OUTPUT_DIR = "workspace/data/processed"
@@ -53,6 +58,29 @@ class FeatureAgent(BaseAgent):
     def run(self):
 
         self.log("Starting feature engineering.")
+
+        # ==========================================================
+        # BUG 7 FIX — Guard: cleaned_dataset_path must not be None
+        #
+        # cleaned_dataset_path is set by PrepAgent on success.
+        # If PrepAgent failed (or was skipped), it stays None.
+        # Without this check, None gets interpolated into the LLM
+        # prompt as the string "None", causing the generated code to
+        # try to open a file literally called "None".
+        # ==========================================================
+
+        if not self.state.cleaned_dataset_path:
+
+            self.error(
+                "cleaned_dataset_path is None. "
+                "PrepAgent may not have run or may have failed. "
+                "Cannot proceed with feature engineering."
+            )
+
+            self.state.retry_required = True
+
+            self.complete()   # route back to Supervisor
+            return self.state
 
         dataset_path = self.state.cleaned_dataset_path
         target_column = self.state.target_column
@@ -63,18 +91,14 @@ class FeatureAgent(BaseAgent):
         )
 
         preprocessing_report = (
-            getattr(self.state, "preprocessing_report", None)
+            self.state.preprocessing_report
             or "No preprocessing report available."
         )
 
-        os.makedirs(
-            self.OUTPUT_DIR,
-            exist_ok=True,
-        )
+        os.makedirs(self.OUTPUT_DIR, exist_ok=True)
 
         feature_dataset_path = str(
-            Path(self.OUTPUT_DIR)
-            / self.OUTPUT_FILE
+            Path(self.OUTPUT_DIR) / self.OUTPUT_FILE
         )
 
         # ==========================================================
@@ -232,9 +256,10 @@ Rules
 
 - Do NOT use subprocess.
 
-- Do NOT use bare open() calls. Use pathlib.Path for all file writing:
-    from pathlib import Path
-    Path(output_path).write_text(content, encoding='utf-8')
+- Do NOT use bare open() calls.
+  Use pathlib.Path for all file writing:
+      from pathlib import Path
+      Path(output_path).write_text(content, encoding='utf-8')
 
 - Never modify the original dataset.
 
@@ -247,49 +272,38 @@ Rules
 
         # ==========================================================
         # Generate Feature Engineering Code
+        #
+        # BUG 11 FIX — use self.generate_code() not self.llm.generate_code()
+        # The base-class helper adds a standardised log entry and ensures
+        # that any future cross-cutting concern (tracing, metrics, retry
+        # policy) only needs to be added in one place.
         # ==========================================================
-
-        self.log(
-            "Generating feature engineering code using LLM."
-        )
 
         try:
 
-            generated_code = self.llm.generate_code(
-                prompt=prompt,
-                system_prompt=(
-                    "You are an expert Feature Engineering "
-                    "specialist for machine learning."
-                ),
+            generated_code = self.generate_code(
+                prompt,
+                "You are an expert Feature Engineering specialist "
+                "for machine learning.",
             )
 
         except Exception as e:
 
-            self.error(
-                f"LLM generation failed: {e}"
-            )
-
+            self.error(f"LLM generation failed: {e}")
             self.state.retry_required = True
-
-            # BUG FIX: was missing self.complete() — without it the main loop
-            # re-runs FeatureAgent directly, bypassing the Supervisor's retry
-            # limit and routing logic entirely.
-            self.complete()
-
+            self.complete()   # BUG 3 FIX — route back to Supervisor
             return self.state
 
-        self.state.generated_code.append(
-            generated_code
-        )
+        self.state.generated_code.append(generated_code)
 
-        self.log(
-            "Executing feature engineering code "
-            "inside Sandbox."
-        )
+        # ==========================================================
+        # Execute Generated Code
+        #
+        # BUG 11 FIX — use self.execute_code() not self.sandbox.execute()
+        # Same reasoning: consistent logging through the base-class helper.
+        # ==========================================================
 
-        result = self.sandbox.execute(
-            script=generated_code,
-        )
+        result = self.execute_code(generated_code)
 
         # ==========================================================
         # Check Execution Result
@@ -308,9 +322,7 @@ Rules
                 decision="Feature engineering failed. Retry required.",
             )
 
-            # BUG FIX: was missing self.complete() — same Supervisor bypass issue
-            self.complete()
-
+            self.complete()   # BUG 3 FIX
             return self.state
 
         # ==========================================================
@@ -320,7 +332,8 @@ Rules
         if not os.path.exists(feature_dataset_path):
 
             self.error(
-                "Feature engineering completed but no output dataset was generated."
+                "Feature engineering completed but no output "
+                "dataset was generated."
             )
 
             self.state.retry_required = True
@@ -330,9 +343,7 @@ Rules
                 decision="Feature dataset missing after execution.",
             )
 
-            # BUG FIX: was missing self.complete() — same Supervisor bypass issue
-            self.complete()
-
+            self.complete()   # BUG 3 FIX
             return self.state
 
         # ==========================================================
@@ -340,14 +351,11 @@ Rules
         # ==========================================================
 
         self.state.feature_dataset_path = feature_dataset_path
-
-        # Save generated report (stdout)
         self.state.feature_report = result.stdout
 
-        # Store generated code
         self.state.log_execution(
             agent=self.name,
-            action="Generated feature engineering code",
+            action="Feature engineering code generated and executed",
             status="SUCCESS",
             details=result.stdout,
         )
@@ -361,27 +369,23 @@ Rules
         )
 
         self.log(
-            f"Feature engineered dataset saved to "
-            f"{feature_dataset_path}"
+            f"Feature engineered dataset saved to {feature_dataset_path}"
         )
 
-        self.log(
-            "Feature engineering completed successfully."
-        )
+        self.log("Feature engineering completed successfully.")
 
         # ==========================================================
         # Workflow Progression
-        # ==========================================================
-
-        # BUG FIX: was:
-        #   self.state.current_phase = "MODELING"   ← direct field mutation
-        #   self.state.next_agent("ModelAgent")     ← bypasses Supervisor entirely
         #
-        # Every agent must hand control back to the Supervisor via self.complete(),
-        # which sets current_agent = "Supervisor". The Supervisor then reads
-        # current_phase from PHASE_ROUTING to decide the next agent.
-        # Routing directly to ModelAgent skips retry-limit checks and any
-        # future Supervisor logic (e.g. conditional branching, logging).
+        # BUG 2 FIX — was:
+        #   self.state.current_phase = "MODELING"   (direct mutation)
+        #   self.state.next_agent("ModelAgent")     (bypasses Supervisor)
+        #
+        # Every agent MUST route through the Supervisor via self.complete().
+        # The Supervisor reads current_phase from PHASE_ROUTING and decides
+        # the next agent. Bypassing it skips retry-limit enforcement and all
+        # future Supervisor logic.
+        # ==========================================================
 
         self.set_phase("MODELING")
         self.complete()    # sets current_agent = "Supervisor"
